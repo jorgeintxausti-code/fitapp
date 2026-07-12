@@ -4,13 +4,12 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { peatScoreBg } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
-import { Bookmark, BookmarkCheck, Loader2, Trash2 } from 'lucide-react'
+import { Bookmark, BookmarkCheck, Trash2 } from 'lucide-react'
 import type { Meal } from '@/types/database'
 
 export default function MealRowClient({ meal }: { meal: Meal }) {
   const router = useRouter()
   const [expanded, setExpanded] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -30,29 +29,11 @@ export default function MealRowClient({ meal }: { meal: Meal }) {
     router.refresh()
   }
 
-  async function handleSaveHabitual() {
-    setSaving(true)
-    const supabase = createClient()
-    await supabase.from('saved_meals').insert({
-      user_id: meal.user_id,
-      nombre: (meal.descripcion_original ?? 'Comida').slice(0, 50),
-      tipo: meal.tipo,
-      kcal: meal.kcal,
-      proteina_g: meal.proteina_g,
-      carbohidratos_g: meal.carbohidratos_g,
-      grasa_g: meal.grasa_g,
-      pufa_g: meal.pufa_g,
-      calcio_mg: meal.calcio_mg,
-      fosforo_mg: meal.fosforo_mg,
-      peat_score: meal.peat_score,
-      peat_comentario: meal.peat_comentario,
-      desglose: meal.desglose,
-      veces_usada: 1,
-      ultima_vez: new Date().toISOString(),
-    })
+  function handleSaveHabitual() {
     setSaved(true)
-    setSaving(false)
     setExpanded(false)
+    const q = encodeURIComponent(meal.descripcion_original ?? '')
+    router.push(`/habituales/nueva?q=${q}&tipo=${meal.tipo}`)
   }
 
   return (
@@ -91,10 +72,9 @@ export default function MealRowClient({ meal }: { meal: Meal }) {
         <div className="px-4 pb-3 pt-0 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
           <button
             onClick={handleSaveHabitual}
-            disabled={saving}
-            className="flex items-center gap-2 text-sm font-medium text-orange-500 disabled:opacity-50 py-2"
+            className="flex items-center gap-2 text-sm font-medium text-orange-500 py-2"
           >
-            {saving ? <Loader2 size={15} className="animate-spin" /> : <Bookmark size={15} />}
+            <Bookmark size={15} />
             Guardar como habitual
           </button>
 

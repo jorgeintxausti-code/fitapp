@@ -7,7 +7,7 @@ import { tipoComidaPorHora, peatScoreBg, peatScoreColor } from '@/lib/utils'
 import type { SavedMeal, TipoComida } from '@/types/database'
 import type { MealAnalysis } from '@/app/api/analyze-meal/route'
 import Link from 'next/link'
-import { ArrowLeft, Mic, MicOff, Loader2, ChevronDown, ChevronUp, Clock, Camera, X, Settings2 } from 'lucide-react'
+import { ArrowLeft, Mic, MicOff, Loader2, Clock, Camera, X, Settings2 } from 'lucide-react'
 
 const TIPOS: TipoComida[] = ['desayuno', 'comida', 'cena', 'snack']
 
@@ -58,7 +58,8 @@ export default function NuevaIngestaClient({ savedMeals }: Props) {
   const [tipo, setTipo] = useState<TipoComida>(tipoComidaPorHora())
   const [result, setResult] = useState<EditableResult | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [desglosOpen, setDesglosOpen] = useState(false)
+  const [reanalyzeOpen, setReanalyzeOpen] = useState(false)
+  const [correctionText, setCorrectionText] = useState('')
   const [listening, setListening] = useState(false)
   const [guardandoHabitual, setGuardandoHabitual] = useState(false)
   const [foto, setFoto] = useState<FotoData | null>(null)
@@ -118,29 +119,49 @@ export default function NuevaIngestaClient({ savedMeals }: Props) {
     setFoto(null)
   }
 
+  async function callAnalyze(textoAnalizar: string): Promise<MealAnalysis> {
+    const body: Record<string, string> = {}
+    if (textoAnalizar.trim()) body.texto = textoAnalizar
+    if (foto) {
+      body.fotoBase64 = foto.base64
+      body.fotoMimeType = foto.mimeType
+    }
+    const res = await fetch('/api/analyze-meal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) throw new Error((await res.json()).error ?? 'Error en el servidor')
+    return res.json()
+  }
+
   async function handleAnalyze() {
     if (!texto.trim() && !foto) return
     setStep('analyzing')
     setError(null)
     try {
-      const body: Record<string, string> = {}
-      if (texto.trim()) body.texto = texto
-      if (foto) {
-        body.fotoBase64 = foto.base64
-        body.fotoMimeType = foto.mimeType
-      }
-      const res = await fetch('/api/analyze-meal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) throw new Error((await res.json()).error ?? 'Error en el servidor')
-      const data: MealAnalysis = await res.json()
+      const data = await callAnalyze(texto)
       setResult({ ...data, descripcion: texto || 'Foto de comida', tipo })
       setStep('confirm')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error desconocido')
       setStep('input')
+    }
+  }
+
+  async function handleReanalyze() {
+    if (!result || !correctionText.trim()) return
+    setReanalyzeOpen(false)
+    setStep('analyzing')
+    try {
+      const combined = `${result.descripcion}\n\nCorrecciones: ${correctionText}`
+      const data = await callAnalyze(combined)
+      setResult({ ...data, descripcion: result.descripcion, tipo: result.tipo })
+      setCorrectionText('')
+      setStep('confirm')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error desconocido')
+      setStep('confirm')
     }
   }
 
@@ -176,24 +197,9 @@ export default function NuevaIngestaClient({ savedMeals }: Props) {
     }
 
     if (guardarHabitual) {
-      const nombre = result.descripcion.slice(0, 50)
-      await supabase.from('saved_meals').insert({
-        user_id: user.id,
-        nombre,
-        tipo: result.tipo,
-        kcal: result.kcal,
-        proteina_g: result.proteina_g,
-        carbohidratos_g: result.carbohidratos_g,
-        grasa_g: result.grasa_g,
-        pufa_g: result.pufa_g,
-        calcio_mg: result.calcio_mg,
-        fosforo_mg: result.fosforo_mg,
-        peat_score: result.peat_score,
-        peat_comentario: result.peat_comentario,
-        desglose: result.desglose as unknown as import('@/types/database').Json,
-        veces_usada: 1,
-        ultima_vez: new Date().toISOString(),
-      })
+      const q = encodeURIComponent(result.descripcion)
+      router.push(`/habituales/nueva?q=${q}&tipo=${result.tipo}`)
+      return
     }
 
     router.push('/hoy')
@@ -233,6 +239,20 @@ export default function NuevaIngestaClient({ savedMeals }: Props) {
     router.refresh()
   }
 
+  function removeDesgloseItem(index: number) {
+    if (!result) return
+    const newDesglose = result.desglose.filter((_, i) => i !== index)
+    setResult({
+      ...result,
+      kcal: Math.round(newDesglose.reduce((s, d) => s + d.kcal, 0)),
+      proteina_g: Math.round(newDesglose.reduce((s, d) => s + d.proteina_g, 0) * 10) / 10,
+      carbohidratos_g: Math.round(newDesglose.reduce((s, d) => s + d.carbohidratos_g, 0) * 10) / 10,
+      grasa_g: Math.round(newDesglose.reduce((s, d) => s + d.grasa_g, 0) * 10) / 10,
+      pufa_g: Math.round(newDesglose.reduce((s, d) => s + d.pufa_g, 0) * 10) / 10,
+      desglose: newDesglose,
+    })
+  }
+
   // ── Pantalla de carga ─────────────────────────────────────────────────────
   if (step === 'analyzing' || step === 'saving') {
     return (
@@ -245,25 +265,10 @@ export default function NuevaIngestaClient({ savedMeals }: Props) {
     )
   }
 
-  function removeDesgloseItem(index: number) {
-    if (!result) return
-    const item = result.desglose[index]
-    const newDesglose = result.desglose.filter((_, i) => i !== index)
-    setResult({
-      ...result,
-      kcal: Math.max(0, Math.round(newDesglose.reduce((s, d) => s + d.kcal, 0))),
-      proteina_g: Math.max(0, Math.round(newDesglose.reduce((s, d) => s + d.proteina_g, 0) * 10) / 10),
-      carbohidratos_g: Math.max(0, Math.round((result.carbohidratos_g - (item.carbohidratos_g ?? 0)) * 10) / 10),
-      grasa_g: Math.max(0, Math.round((result.grasa_g - (item.grasa_g ?? 0)) * 10) / 10),
-      pufa_g: Math.max(0, Math.round((result.pufa_g - (item.pufa_g ?? 0)) * 10) / 10),
-      desglose: newDesglose,
-    })
-  }
-
   // ── Tarjeta de confirmación ───────────────────────────────────────────────
   if (step === 'confirm' && result) {
     return (
-      <div className="px-4 pt-6 pb-52 max-w-lg mx-auto space-y-4">
+      <div className="px-4 pt-6 pb-32 max-w-lg mx-auto space-y-4">
         <div className="flex items-center gap-3">
           <button onClick={() => setStep('input')} className="p-2 -ml-2 rounded-xl text-gray-500">
             <ArrowLeft size={22} />
@@ -288,11 +293,11 @@ export default function NuevaIngestaClient({ savedMeals }: Props) {
           ))}
         </div>
 
-        {/* Descripción + foto preview */}
+        {/* Descripción + foto */}
         <div className="rounded-2xl bg-gray-50 dark:bg-gray-900 px-4 py-3 flex items-start gap-3">
           {foto && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={foto.previewUrl} alt="foto comida" className="w-16 h-16 rounded-xl object-cover shrink-0" />
+            <img src={foto.previewUrl} alt="foto comida" className="w-14 h-14 rounded-xl object-cover shrink-0" />
           )}
           <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{result.descripcion}</p>
         </div>
@@ -310,56 +315,83 @@ export default function NuevaIngestaClient({ savedMeals }: Props) {
           </div>
         </div>
 
-        {/* Macros editables */}
-        <div className="rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
-          <MacroRow label="Calorías" value={result.kcal} unit="kcal"
-            onChange={(v) => setResult({ ...result, kcal: v })} highlight />
-          <MacroRow label="Proteína" value={result.proteina_g} unit="g"
-            onChange={(v) => setResult({ ...result, proteina_g: v })} highlight />
-          <MacroRow label="Carbohidratos" value={result.carbohidratos_g} unit="g"
-            onChange={(v) => setResult({ ...result, carbohidratos_g: v })} />
-          <MacroRow label="Grasa" value={result.grasa_g} unit="g"
-            onChange={(v) => setResult({ ...result, grasa_g: v })} />
-          <MacroRow label="PUFA" value={result.pufa_g} unit="g"
-            onChange={(v) => setResult({ ...result, pufa_g: v })} />
+        {/* Alimentos */}
+        {result.desglose.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+              Alimentos ({result.desglose.length})
+            </p>
+            {result.desglose.map((item, i) => (
+              <div key={i} className="flex items-center gap-3 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 px-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{item.alimento}</p>
+                  <p className="text-xs text-gray-400">
+                    {item.cantidad} · {Math.round(item.kcal)} kcal · {Math.round(item.proteina_g)}g prot
+                  </p>
+                </div>
+                <button
+                  onClick={() => removeDesgloseItem(i)}
+                  className="p-1.5 rounded-lg text-gray-300 dark:text-gray-600 active:text-red-400 transition-colors shrink-0"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Totales */}
+        <div className="rounded-2xl bg-orange-50 dark:bg-orange-950 px-4 py-3 space-y-1">
+          <p className="text-[10px] text-orange-600 font-semibold uppercase tracking-wide">Total</p>
+          <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+            <span className="text-sm font-bold text-gray-900 dark:text-white">{Math.round(result.kcal)} kcal</span>
+            <span className="text-sm text-gray-600 dark:text-gray-300">{Math.round(result.proteina_g * 10) / 10}g prot</span>
+            <span className="text-sm text-gray-500">{Math.round(result.carbohidratos_g * 10) / 10}g carbs</span>
+            <span className="text-sm text-gray-500">{Math.round(result.grasa_g * 10) / 10}g grasa</span>
+            <span className="text-sm text-gray-500">{Math.round(result.pufa_g * 10) / 10}g PUFA</span>
+          </div>
         </div>
 
-        {/* Desglose colapsable */}
-        {result.desglose.length > 0 && (
-          <div className="rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 overflow-hidden">
-            <button
-              onClick={() => setDesglosOpen(!desglosOpen)}
-              className="flex w-full items-center justify-between px-4 py-3"
-            >
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Desglose por alimento ({result.desglose.length})
-              </span>
-              {desglosOpen ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
-            </button>
-            {desglosOpen && (
-              <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                {result.desglose.map((item, i) => (
-                  <div key={i} className="flex items-center gap-2 px-4 py-2.5">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{item.alimento}</p>
-                      <p className="text-xs text-gray-400">{item.cantidad} · {Math.round(item.kcal)} kcal · {Math.round(item.proteina_g)}g prot</p>
-                    </div>
-                    <button
-                      onClick={() => removeDesgloseItem(i)}
-                      className="p-1.5 rounded-lg text-gray-300 dark:text-gray-600 active:text-red-400 transition-colors shrink-0"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+        {/* Reanalizar */}
+        {reanalyzeOpen ? (
+          <div className="rounded-2xl border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/50 p-4 space-y-3">
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">¿Qué hay que corregir?</p>
+            <textarea
+              value={correctionText}
+              onChange={e => setCorrectionText(e.target.value)}
+              placeholder="Ej: el pollo era 200g no 100g, faltó añadir las patatas..."
+              rows={3}
+              autoFocus
+              className="w-full rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-800 px-3 py-2.5 text-sm resize-none outline-none focus:border-orange-500"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setReanalyzeOpen(false); setCorrectionText('') }}
+                className="flex-1 py-2.5 text-sm text-gray-500 rounded-xl border border-gray-200 dark:border-gray-700"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleReanalyze}
+                disabled={!correctionText.trim()}
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-orange-500 rounded-xl disabled:opacity-40"
+              >
+                Analizar de nuevo
+              </button>
+            </div>
           </div>
+        ) : (
+          <button
+            onClick={() => setReanalyzeOpen(true)}
+            className="text-sm text-gray-400 underline underline-offset-2 py-1"
+          >
+            Algo está mal · Reanalizar con Claude
+          </button>
         )}
 
         {error && <p className="text-sm text-red-500">{error}</p>}
 
-        {/* Acciones */}
+        {/* Acciones fijas */}
         <div className="fixed bottom-20 left-0 right-0 px-4 space-y-2 max-w-lg mx-auto">
           <button
             onClick={() => handleSaveMeal(false)}
@@ -528,36 +560,6 @@ export default function NuevaIngestaClient({ savedMeals }: Props) {
         >
           Registrar ingesta →
         </button>
-      </div>
-    </div>
-  )
-}
-
-function MacroRow({
-  label, value, unit, onChange, highlight = false,
-}: {
-  label: string
-  value: number
-  unit: string
-  onChange: (v: number) => void
-  highlight?: boolean
-}) {
-  return (
-    <div className="flex items-center justify-between px-4 py-3">
-      <span className={`text-sm ${highlight ? 'font-semibold text-gray-900 dark:text-white' : 'text-gray-500'}`}>
-        {label}
-      </span>
-      <div className="flex items-center gap-1">
-        <input
-          type="number"
-          value={Math.round(value * 10) / 10}
-          onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-          step={highlight ? 1 : 0.1}
-          className={`w-20 text-right rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 px-2 py-1 text-sm outline-none focus:border-orange-500 ${
-            highlight ? 'font-bold text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'
-          }`}
-        />
-        <span className="text-xs text-gray-400 w-6">{unit}</span>
       </div>
     </div>
   )

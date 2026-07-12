@@ -2,9 +2,10 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { peatScoreBg } from '@/lib/utils'
+import { peatScoreBg, peatScoreColor } from '@/lib/utils'
 import type { SavedMeal, TipoComida } from '@/types/database'
-import { Pencil, Trash2, X, Plus, Check, ChevronDown, ChevronUp } from 'lucide-react'
+import type { MealAnalysis } from '@/app/api/analyze-meal/route'
+import { Pencil, Trash2, X, Plus, Check, ChevronDown, ChevronUp, RefreshCw, Loader2 } from 'lucide-react'
 
 const TIPOS: TipoComida[] = ['desayuno', 'comida', 'cena', 'snack']
 const TIPO_LABEL: Record<string, string> = {
@@ -32,6 +33,8 @@ interface EditState {
   nombre: string
   tipo: TipoComida
   items: FoodItem[]
+  peat_score: number
+  peat_comentario: string
 }
 
 function parseItems(desglose: unknown): FoodItem[] {
@@ -61,24 +64,36 @@ export default function HabitualesClient({ savedMeals: initial }: { savedMeals: 
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  // New item form
-  const [newItem, setNewItem] = useState({ alimento: '', cantidad: '', kcal: '', proteina_g: '', carbohidratos_g: '', grasa_g: '', pufa_g: '' })
+  const [newItem, setNewItem] = useState({ alimento: '', cantidad: '' })
   const [showAddForm, setShowAddForm] = useState(false)
+  const [reanalyzeOpen, setReanalyzeOpen] = useState(false)
+  const [correctionText, setCorrectionText] = useState('')
+  const [reanalyzing, setReanalyzing] = useState(false)
 
   function startEdit(meal: SavedMeal) {
     setEditId(meal.id)
     setConfirmId(null)
     setExpandedId(null)
     setShowAddForm(false)
-    setNewItem({ alimento: '', cantidad: '', kcal: '', proteina_g: '', carbohidratos_g: '', grasa_g: '', pufa_g: '' })
+    setReanalyzeOpen(false)
+    setCorrectionText('')
+    setNewItem({ alimento: '', cantidad: '' })
     setEdit({
       nombre: meal.nombre,
       tipo: (meal.tipo as TipoComida) ?? 'comida',
       items: parseItems(meal.desglose),
+      peat_score: meal.peat_score,
+      peat_comentario: meal.peat_comentario ?? '',
     })
   }
 
-  function cancelEdit() { setEditId(null); setEdit(null); setShowAddForm(false) }
+  function cancelEdit() {
+    setEditId(null)
+    setEdit(null)
+    setShowAddForm(false)
+    setReanalyzeOpen(false)
+    setCorrectionText('')
+  }
 
   function removeItem(id: string) {
     setEdit(e => e ? { ...e, items: e.items.filter(i => i._id !== id) } : e)
@@ -92,22 +107,38 @@ export default function HabitualesClient({ savedMeals: initial }: { savedMeals: 
         _id: uid(),
         alimento: newItem.alimento,
         cantidad: newItem.cantidad,
-        kcal: parseFloat(newItem.kcal) || 0,
-        proteina_g: parseFloat(newItem.proteina_g) || 0,
-        carbohidratos_g: parseFloat(newItem.carbohidratos_g) || 0,
-        grasa_g: parseFloat(newItem.grasa_g) || 0,
-        pufa_g: parseFloat(newItem.pufa_g) || 0,
+        kcal: 0, proteina_g: 0, carbohidratos_g: 0, grasa_g: 0, pufa_g: 0,
       }],
     } : e)
-    setNewItem({ alimento: '', cantidad: '', kcal: '', proteina_g: '', carbohidratos_g: '', grasa_g: '', pufa_g: '' })
+    setNewItem({ alimento: '', cantidad: '' })
     setShowAddForm(false)
   }
 
-  function updateItem(id: string, field: keyof Omit<FoodItem, '_id'>, val: string) {
-    setEdit(e => e ? {
-      ...e,
-      items: e.items.map(i => i._id === id ? { ...i, [field]: ['kcal', 'proteina_g'].includes(field) ? parseFloat(val) || 0 : val } : i),
-    } : e)
+  async function handleReanalyze() {
+    if (!edit || !correctionText.trim()) return
+    setReanalyzing(true)
+    try {
+      const combined = `${edit.nombre}\n\nCorrecciones: ${correctionText}`
+      const res = await fetch('/api/analyze-meal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texto: combined }),
+      })
+      if (!res.ok) throw new Error((await res.json()).error ?? 'Error')
+      const data: MealAnalysis = await res.json()
+      setEdit(e => e ? {
+        ...e,
+        items: data.desglose.map((d, i) => ({ ...d, _id: String(i) })),
+        peat_score: data.peat_score,
+        peat_comentario: data.peat_comentario,
+      } : e)
+      setCorrectionText('')
+      setReanalyzeOpen(false)
+    } catch {
+      // keep open so user can retry
+    } finally {
+      setReanalyzing(false)
+    }
   }
 
   async function handleSave(mealId: string) {
@@ -123,14 +154,19 @@ export default function HabitualesClient({ savedMeals: initial }: { savedMeals: 
     const desgloseClean = edit.items.map(({ _id: _ignored, ...rest }) => rest)
     const supabase = createClient()
     const { error } = await supabase.from('saved_meals').update({
-      nombre: edit.nombre, tipo: edit.tipo,
+      nombre: edit.nombre,
+      tipo: edit.tipo,
       kcal, proteina_g, carbohidratos_g, grasa_g, pufa_g,
+      peat_score: edit.peat_score,
+      peat_comentario: edit.peat_comentario,
       desglose: desgloseClean as unknown as import('@/types/database').Json,
     }).eq('id', mealId)
     if (!error) {
       setMeals(prev => prev.map(m => m.id === mealId ? {
         ...m, nombre: edit.nombre, tipo: edit.tipo,
         kcal, proteina_g, carbohidratos_g, grasa_g, pufa_g,
+        peat_score: edit.peat_score,
+        peat_comentario: edit.peat_comentario,
         desglose: desgloseClean as unknown as import('@/types/database').Json,
       } : m))
       cancelEdit()
@@ -204,51 +240,34 @@ export default function HabitualesClient({ savedMeals: initial }: { savedMeals: 
                   ))}
                 </div>
 
+                {/* Peat score */}
+                <div className="flex items-center gap-3 rounded-xl bg-gray-50 dark:bg-gray-800 px-3 py-2.5">
+                  <span className={`text-xl font-bold ${peatScoreColor(edit.peat_score)}`}>
+                    {edit.peat_score}/10
+                  </span>
+                  <p className="text-xs text-gray-500 flex-1 leading-relaxed">{edit.peat_comentario}</p>
+                </div>
+
                 {/* Items */}
                 <div>
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Alimentos</p>
                   <div className="space-y-1.5">
                     {edit.items.length === 0 && (
-                      <p className="text-xs text-gray-400 py-2 text-center">Sin items — añade alimentos abajo</p>
+                      <p className="text-xs text-gray-400 py-2 text-center">Sin alimentos</p>
                     )}
                     {edit.items.map(item => (
-                      <div key={item._id} className="rounded-xl bg-gray-50 dark:bg-gray-800 px-3 py-2 space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          <input
-                            value={item.alimento}
-                            onChange={e => updateItem(item._id, 'alimento', e.target.value)}
-                            className="flex-1 bg-transparent text-sm font-medium text-gray-800 dark:text-gray-200 outline-none"
-                            placeholder="Alimento"
-                          />
-                          <button onClick={() => removeItem(item._id)} className="text-gray-300 dark:text-gray-600 active:text-red-400 shrink-0">
-                            <X size={14} />
-                          </button>
+                      <div key={item._id} className="flex items-center gap-2 rounded-xl bg-gray-50 dark:bg-gray-800 px-3 py-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{item.alimento}</p>
+                          <p className="text-xs text-gray-400">{item.cantidad} · {Math.round(item.kcal)} kcal · {Math.round(item.proteina_g)}g prot</p>
                         </div>
-                        <div className="flex gap-1.5 flex-wrap">
-                          <input
-                            value={item.cantidad}
-                            onChange={e => updateItem(item._id, 'cantidad', e.target.value)}
-                            placeholder="cantidad"
-                            className="w-24 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 px-2 py-1 text-xs text-gray-500 outline-none"
-                          />
-                          {(['kcal','proteina_g','carbohidratos_g','grasa_g','pufa_g'] as const).map((key) => { const label = {kcal:'kcal',proteina_g:'prot',carbohidratos_g:'carbs',grasa_g:'grasa',pufa_g:'pufa'}[key]; return (
-                            <div key={key} className="flex items-center gap-0.5">
-                              <input
-                                type="number"
-                                value={item[key] as number}
-                                onChange={e => updateItem(item._id, key, e.target.value)}
-                                step="0.1"
-                                className="w-14 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 px-1.5 py-1 text-xs text-right outline-none"
-                              />
-                              <span className="text-[9px] text-gray-400">{label}</span>
-                            </div>
-                          )})}
-                        </div>
+                        <button onClick={() => removeItem(item._id)} className="text-gray-300 dark:text-gray-600 active:text-red-400 shrink-0 p-1">
+                          <X size={14} />
+                        </button>
                       </div>
                     ))}
                   </div>
 
-                  {/* Añadir item */}
                   {showAddForm ? (
                     <div className="mt-2 rounded-xl border border-dashed border-orange-300 dark:border-orange-700 p-3 space-y-2">
                       <input
@@ -264,21 +283,6 @@ export default function HabitualesClient({ savedMeals: initial }: { savedMeals: 
                         placeholder="Cantidad (ej: 100g, 2 uds)"
                         className="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 px-2 py-1.5 text-xs outline-none"
                       />
-                      <div className="grid grid-cols-5 gap-1.5">
-                        {([['kcal','kcal'],['prot','proteina_g'],['carbs','carbohidratos_g'],['grasa','grasa_g'],['pufa','pufa_g']] as [string,string][]).map(([label, key]) => (
-                          <div key={key}>
-                            <p className="text-[9px] text-gray-400 text-center mb-0.5">{label}</p>
-                            <input
-                              type="number"
-                              step="0.1"
-                              value={newItem[key as keyof typeof newItem]}
-                              onChange={e => setNewItem(n => ({ ...n, [key]: e.target.value }))}
-                              placeholder="0"
-                              className="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 px-1.5 py-1.5 text-xs text-right outline-none"
-                            />
-                          </div>
-                        ))}
-                      </div>
                       <div className="flex gap-2">
                         <button onClick={() => setShowAddForm(false)} className="flex-1 py-1.5 text-xs text-gray-400 rounded-xl border border-gray-200 dark:border-gray-700">
                           Cancelar
@@ -297,6 +301,46 @@ export default function HabitualesClient({ savedMeals: initial }: { savedMeals: 
                     </button>
                   )}
                 </div>
+
+                {/* Reanalizar con IA */}
+                {reanalyzeOpen ? (
+                  <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/50 p-3 space-y-2">
+                    <p className="text-xs font-medium text-gray-700 dark:text-gray-300">¿Qué hay que corregir?</p>
+                    <textarea
+                      value={correctionText}
+                      onChange={e => setCorrectionText(e.target.value)}
+                      placeholder="Ej: el queso era 50g no 30g, añade tomate..."
+                      rows={2}
+                      autoFocus
+                      className="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 px-2.5 py-2 text-sm resize-none outline-none focus:border-orange-500"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setReanalyzeOpen(false); setCorrectionText('') }}
+                        className="flex-1 py-1.5 text-xs text-gray-500 rounded-xl border border-gray-200 dark:border-gray-700"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={handleReanalyze}
+                        disabled={reanalyzing || !correctionText.trim()}
+                        className="flex-1 py-1.5 text-xs font-semibold text-white bg-orange-500 rounded-xl disabled:opacity-40 flex items-center justify-center gap-1"
+                      >
+                        {reanalyzing
+                          ? <><Loader2 size={11} className="animate-spin" /> Analizando...</>
+                          : 'Analizar de nuevo'
+                        }
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setReanalyzeOpen(true)}
+                    className="flex items-center gap-1.5 text-xs text-orange-500 font-medium py-1"
+                  >
+                    <RefreshCw size={11} /> Reanalizar con IA
+                  </button>
+                )}
 
                 {/* Totales calculados desde items */}
                 <div className="rounded-xl bg-orange-50 dark:bg-orange-950 px-3 py-2.5 space-y-1">

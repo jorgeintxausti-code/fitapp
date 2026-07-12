@@ -216,7 +216,13 @@ function Step1({ form, set }: { form: FormData; set: (k: keyof FormData) => (e: 
       </Field>
 
       <Field label="Fecha de nacimiento">
-        <input type="date" value={form.fecha_nacimiento} onChange={set('fecha_nacimiento')} className={inputCls} />
+        <input
+          type="date"
+          value={form.fecha_nacimiento}
+          onChange={set('fecha_nacimiento')}
+          max={new Date().toLocaleDateString('sv')}
+          className={`${inputCls} text-gray-900 dark:text-white [color-scheme:dark]`}
+        />
       </Field>
 
       <Field label="Altura (cm)">

@@ -81,7 +81,7 @@ export default function EditProfileForm({ profile }: Props) {
           </select>
         </Field>
         <Field label="Fecha nacimiento">
-          <input type="date" value={form.fecha_nacimiento} onChange={set('fecha_nacimiento')} className={inputCls} />
+          <input type="date" value={form.fecha_nacimiento} onChange={set('fecha_nacimiento')} max={new Date().toLocaleDateString('sv')} className={`${inputCls} text-gray-900 dark:text-white [color-scheme:dark]`} />
         </Field>
       </div>
 

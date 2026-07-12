@@ -248,11 +248,15 @@ export default function NuevaIngestaClient({ savedMeals }: Props) {
   function removeDesgloseItem(index: number) {
     if (!result) return
     const item = result.desglose[index]
+    const newDesglose = result.desglose.filter((_, i) => i !== index)
     setResult({
       ...result,
-      kcal: Math.max(0, Math.round(result.kcal - item.kcal)),
-      proteina_g: Math.max(0, Math.round((result.proteina_g - item.proteina_g) * 10) / 10),
-      desglose: result.desglose.filter((_, i) => i !== index),
+      kcal: Math.max(0, Math.round(newDesglose.reduce((s, d) => s + d.kcal, 0))),
+      proteina_g: Math.max(0, Math.round(newDesglose.reduce((s, d) => s + d.proteina_g, 0) * 10) / 10),
+      carbohidratos_g: Math.max(0, Math.round((result.carbohidratos_g - (item.carbohidratos_g ?? 0)) * 10) / 10),
+      grasa_g: Math.max(0, Math.round((result.grasa_g - (item.grasa_g ?? 0)) * 10) / 10),
+      pufa_g: Math.max(0, Math.round((result.pufa_g - (item.pufa_g ?? 0)) * 10) / 10),
+      desglose: newDesglose,
     })
   }
 

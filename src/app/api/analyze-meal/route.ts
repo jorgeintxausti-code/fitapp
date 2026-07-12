@@ -19,6 +19,9 @@ const MealSchema = z.object({
     cantidad: z.string(),
     kcal: z.number(),
     proteina_g: z.number(),
+    carbohidratos_g: z.number(),
+    grasa_g: z.number(),
+    pufa_g: z.number(),
   })),
 })
 

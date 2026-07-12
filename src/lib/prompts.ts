@@ -14,7 +14,15 @@ Schema exacto de respuesta:
   "peat_score": número entero 0-10,
   "peat_comentario": "texto corto en español, máximo 80 caracteres",
   "desglose": [
-    {"alimento": "nombre del alimento", "cantidad": "porción estimada", "kcal": number, "proteina_g": number}
+    {
+      "alimento": "nombre del alimento",
+      "cantidad": "porción estimada",
+      "kcal": number,
+      "proteina_g": number,
+      "carbohidratos_g": number,
+      "grasa_g": number,
+      "pufa_g": number
+    }
   ]
 }
 

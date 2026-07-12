@@ -15,6 +15,9 @@ export interface DesglosAlimento {
   cantidad: string
   kcal: number
   proteina_g: number
+  carbohidratos_g: number
+  grasa_g: number
+  pufa_g: number
 }
 
 // ─── Application types (used in components) ──────────────────────────────────

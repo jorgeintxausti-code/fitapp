@@ -404,32 +404,45 @@ export default function NuevaIngestaClient({ savedMeals }: Props) {
         ))}
       </div>
 
-      {/* Comidas habituales */}
-      {savedMeals.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Habituales</p>
-          <div className="space-y-2">
-            {savedMeals.slice(0, 5).map((meal) => (
-              <button
-                key={meal.id}
-                onClick={() => handleSavedMeal(meal)}
-                className="flex w-full items-center justify-between rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 px-4 py-3 active:scale-[0.98] transition-transform shadow-sm"
-              >
-                <div className="text-left">
-                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{meal.nombre}</p>
-                  <p className="text-xs text-gray-400">{Math.round(meal.kcal)} kcal · {Math.round(meal.proteina_g)}g prot</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${peatScoreBg(meal.peat_score)}`}>
-                    P{meal.peat_score}
-                  </span>
-                  <Clock size={14} className="text-gray-300" />
-                </div>
-              </button>
-            ))}
+      {/* Comidas habituales filtradas por tipo */}
+      {(() => {
+        const matching = savedMeals.filter(m => m.tipo === tipo)
+        const fallback = matching.length === 0 ? savedMeals.slice(0, 3) : []
+        const toShow = (matching.length > 0 ? matching : fallback).slice(0, 5)
+        if (toShow.length === 0) return null
+        return (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                Habituales {matching.length > 0 ? `· ${tipo}` : ''}
+              </p>
+              {matching.length === 0 && savedMeals.length > 0 && (
+                <span className="text-[10px] text-gray-400">Mostrando todas</span>
+              )}
+            </div>
+            <div className="space-y-2">
+              {toShow.map((meal) => (
+                <button
+                  key={meal.id}
+                  onClick={() => handleSavedMeal(meal)}
+                  className="flex w-full items-center justify-between rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 px-4 py-3 active:scale-[0.98] transition-transform shadow-sm"
+                >
+                  <div className="text-left">
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{meal.nombre}</p>
+                    <p className="text-xs text-gray-400">{Math.round(meal.kcal)} kcal · {Math.round(meal.proteina_g)}g prot</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${peatScoreBg(meal.peat_score)}`}>
+                      P{meal.peat_score}
+                    </span>
+                    <Clock size={14} className="text-gray-300" />
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Input de archivo oculto */}
       <input

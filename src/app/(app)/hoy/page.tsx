@@ -3,8 +3,8 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile, getLatestWeight, getTodayMeals, getTodayActivities } from '@/lib/queries'
 import { calcularBMR, calcularTDEE } from '@/lib/bmr'
-import { peatScoreBg } from '@/lib/utils'
 import { Plus, Flame, Beef, Activity, Scale } from 'lucide-react'
+import MealRowClient from './MealRowClient'
 
 export default async function HoyPage() {
   const supabase = await createClient()
@@ -140,7 +140,7 @@ export default async function HoyPage() {
         ) : (
           <div className="space-y-2">
             {meals.map((meal) => (
-              <MealRow key={meal.id} meal={meal} />
+              <MealRowClient key={meal.id} meal={meal} />
             ))}
           </div>
         )}
@@ -223,31 +223,3 @@ function QuickAction({ href, icon, label, color }: {
   )
 }
 
-function MealRow({ meal }: { meal: { tipo: string; descripcion_original: string | null; kcal: number; proteina_g: number; peat_score: number; eaten_at: string } }) {
-  const hora = new Date(meal.eaten_at).toLocaleTimeString('es-ES', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Europe/Madrid',
-  })
-  const tipo = { desayuno: 'Desayuno', comida: 'Comida', cena: 'Cena', snack: 'Snack' }[meal.tipo] ?? meal.tipo
-
-  return (
-    <div className="flex items-center gap-3 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 px-4 py-3 shadow-sm">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-0.5">
-          <span className="text-xs font-medium text-gray-400">{tipo} · {hora}</span>
-          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${peatScoreBg(meal.peat_score)}`}>
-            P{meal.peat_score}
-          </span>
-        </div>
-        <p className="text-sm text-gray-700 dark:text-gray-300 truncate">
-          {meal.descripcion_original ?? '—'}
-        </p>
-      </div>
-      <div className="text-right shrink-0">
-        <p className="text-sm font-bold text-gray-900 dark:text-white">{Math.round(Number(meal.kcal))}</p>
-        <p className="text-[11px] text-gray-400">{Math.round(Number(meal.proteina_g))}g prot</p>
-      </div>
-    </div>
-  )
-}

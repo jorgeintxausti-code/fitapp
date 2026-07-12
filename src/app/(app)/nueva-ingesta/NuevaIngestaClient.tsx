@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { tipoComidaPorHora, peatScoreBg, peatScoreColor } from '@/lib/utils'
 import type { SavedMeal, TipoComida } from '@/types/database'
@@ -51,8 +51,9 @@ async function resizeImage(file: File, maxPx = 1500): Promise<FotoData> {
 
 export default function NuevaIngestaClient({ savedMeals }: Props) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [step, setStep] = useState<Step>('input')
-  const [texto, setTexto] = useState('')
+  const [texto, setTexto] = useState(searchParams.get('q') ?? '')
   const [tipo, setTipo] = useState<TipoComida>(tipoComidaPorHora())
   const [result, setResult] = useState<EditableResult | null>(null)
   const [error, setError] = useState<string | null>(null)

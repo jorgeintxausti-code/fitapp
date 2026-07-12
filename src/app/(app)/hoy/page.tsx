@@ -5,6 +5,8 @@ import { getProfile, getLatestWeight, getTodayMeals, getTodayActivities } from '
 import { calcularBMR, calcularTDEE } from '@/lib/bmr'
 import { Plus, Flame, Beef, Activity, Scale } from 'lucide-react'
 import MealRowClient from './MealRowClient'
+import RecomendacionesSection from './RecomendacionesSection'
+import { tipoComidaPorHora } from '@/lib/utils'
 
 export default async function HoyPage() {
   const supabase = await createClient()
@@ -119,6 +121,14 @@ export default async function HoyPage() {
         <QuickAction href="/nueva-actividad" icon={<Activity size={18} />} label="Actividad" color="blue" />
         <QuickAction href="/nuevo-peso" icon={<Scale size={18} />} label="Registrar peso" color="purple" />
       </div>
+
+      {/* Sugerencias Peat */}
+      <RecomendacionesSection
+        kcalRestantes={kcalRestantes}
+        proteinaRestante={proteinaObjetivo - proteinaConsumida}
+        tipoComida={tipoComidaPorHora()}
+        comidaHoy={meals.map(m => m.descripcion_original ?? '').filter(Boolean)}
+      />
 
       {/* Ingestas del día */}
       <div>

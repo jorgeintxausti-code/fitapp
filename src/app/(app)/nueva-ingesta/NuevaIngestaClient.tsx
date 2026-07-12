@@ -6,7 +6,8 @@ import { createClient } from '@/lib/supabase/client'
 import { tipoComidaPorHora, peatScoreBg, peatScoreColor } from '@/lib/utils'
 import type { SavedMeal, TipoComida } from '@/types/database'
 import type { MealAnalysis } from '@/app/api/analyze-meal/route'
-import { ArrowLeft, Mic, MicOff, Loader2, ChevronDown, ChevronUp, Clock, Camera, X } from 'lucide-react'
+import Link from 'next/link'
+import { ArrowLeft, Mic, MicOff, Loader2, ChevronDown, ChevronUp, Clock, Camera, X, Settings2 } from 'lucide-react'
 
 const TIPOS: TipoComida[] = ['desayuno', 'comida', 'cena', 'snack']
 
@@ -416,9 +417,9 @@ export default function NuevaIngestaClient({ savedMeals }: Props) {
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
                 Habituales {matching.length > 0 ? `· ${tipo}` : ''}
               </p>
-              {matching.length === 0 && savedMeals.length > 0 && (
-                <span className="text-[10px] text-gray-400">Mostrando todas</span>
-              )}
+              <Link href="/habituales" className="flex items-center gap-1 text-[10px] text-gray-400 active:text-orange-500">
+                <Settings2 size={10} /> Gestionar
+              </Link>
             </div>
             <div className="space-y-2">
               {toShow.map((meal) => (

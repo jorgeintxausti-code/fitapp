@@ -417,86 +417,84 @@ export default function NuevaIngestaClient({ savedMeals }: Props) {
         </div>
       )}
 
-      {/* Textarea + foto preview */}
+      {/* Input de archivo oculto */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handlePhotoSelect}
+      />
+
+      {/* Vista previa foto */}
+      {foto && (
+        <div className="relative inline-block">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={foto.previewUrl} alt="foto" className="w-24 h-24 rounded-2xl object-cover" />
+          <button
+            onClick={removeFoto}
+            className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-gray-700 text-white flex items-center justify-center shadow"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
+
+      {/* Textarea */}
       <div>
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Describe la comida</p>
-
-        {/* Vista previa foto */}
-        {foto && (
-          <div className="relative inline-block mb-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={foto.previewUrl} alt="foto" className="w-24 h-24 rounded-2xl object-cover" />
-            <button
-              onClick={removeFoto}
-              className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-gray-800 text-white flex items-center justify-center shadow"
-            >
-              <X size={12} />
-            </button>
-          </div>
-        )}
-
-        <div className="relative">
-          <textarea
-            value={texto}
-            onChange={(e) => setTexto(e.target.value)}
-            placeholder={foto ? 'Añade contexto opcional (ej: con mantequilla)' : 'Ej: 2 huevos revueltos con 50g de queso, una tostada con mantequilla y un vaso de zumo de naranja'}
-            rows={4}
-            className="w-full rounded-2xl border border-gray-200 dark:border-gray-700 dark:bg-gray-900 px-4 py-3 pr-24 text-base resize-none outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
-          />
-          <div className="absolute bottom-3 right-3 flex gap-2">
-            {/* Cámara */}
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-500 active:scale-95 transition-transform"
-            >
-              <Camera size={18} />
-            </button>
-            {/* Voz */}
-            {hasSpeech && (
-              <button
-                type="button"
-                onClick={toggleVoice}
-                className={`p-2 rounded-xl transition-colors ${
-                  listening
-                    ? 'bg-red-500 text-white'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-500'
-                }`}
-              >
-                {listening ? <MicOff size={18} /> : <Mic size={18} />}
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Input de archivo oculto */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={handlePhotoSelect}
+        <textarea
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          placeholder={foto ? 'Añade contexto opcional (ej: con mantequilla)' : 'Ej: 2 huevos con queso, tostada con mantequilla y zumo de naranja'}
+          rows={4}
+          className="w-full rounded-2xl border border-gray-200 dark:border-gray-700 dark:bg-gray-900 px-4 py-3 text-base resize-none outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
         />
 
-        {listening && (
-          <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-            Escuchando...
-          </p>
-        )}
+        {/* Botones bajo el textarea */}
+        <div className="flex items-center gap-2 mt-2">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-sm active:scale-95 transition-transform"
+          >
+            <Camera size={16} />
+            <span>Foto</span>
+          </button>
+          {hasSpeech && (
+            <button
+              type="button"
+              onClick={toggleVoice}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm transition-colors ${
+                listening
+                  ? 'bg-red-500 text-white'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+              }`}
+            >
+              {listening ? <MicOff size={16} /> : <Mic size={16} />}
+              <span>{listening ? 'Parar' : 'Voz'}</span>
+            </button>
+          )}
+          {listening && (
+            <span className="flex items-center gap-1 text-xs text-red-500 ml-1">
+              <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              Escuchando...
+            </span>
+          )}
+        </div>
       </div>
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 
-      {/* Botón analizar */}
+      {/* Botón registrar */}
       <div className="fixed bottom-20 left-0 right-0 px-4 max-w-lg mx-auto">
         <button
           onClick={handleAnalyze}
           disabled={!texto.trim() && !foto}
           className="w-full rounded-2xl bg-orange-500 py-4 text-base font-semibold text-white shadow-lg disabled:opacity-40 active:scale-95 transition-transform"
         >
-          Analizar con Claude →
+          Registrar ingesta →
         </button>
       </div>
     </div>

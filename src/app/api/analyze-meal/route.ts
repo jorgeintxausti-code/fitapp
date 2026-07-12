@@ -45,61 +45,73 @@ async function callClaude(
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-
-  const { texto, fotoBase64, fotoMimeType } = await req.json() as {
-    texto?: string
-    fotoBase64?: string
-    fotoMimeType?: string
-  }
-
-  if (!texto && !fotoBase64) {
-    return NextResponse.json({ error: 'Falta texto o foto' }, { status: 400 })
-  }
-
-  const content: Anthropic.MessageParam['content'] = []
-
-  if (fotoBase64) {
-    content.push({
-      type: 'image',
-      source: {
-        type: 'base64',
-        media_type: (fotoMimeType ?? 'image/jpeg') as Anthropic.Base64ImageSource['media_type'],
-        data: fotoBase64,
-      },
-    })
-  }
-
-  content.push({
-    type: 'text',
-    text: texto || 'Analiza los alimentos de la imagen',
-  })
-
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  const userMessage: Anthropic.MessageParam = { role: 'user', content }
-
-  let rawText = await callClaude(anthropic, [userMessage])
-
   try {
-    const parsed = MealSchema.parse(JSON.parse(extractJSON(rawText)))
-    return NextResponse.json(parsed)
-  } catch {
-    // Retry asking for clean JSON
-    rawText = await callClaude(anthropic, [
-      userMessage,
-      { role: 'assistant', content: rawText },
-      { role: 'user', content: 'Responde ÚNICAMENTE con el JSON válido, sin texto adicional.' },
-    ])
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    if (!apiKey) {
+      return NextResponse.json({ error: 'API key de IA no configurada en el servidor' }, { status: 500 })
+    }
+
+    const { texto, fotoBase64, fotoMimeType } = await req.json() as {
+      texto?: string
+      fotoBase64?: string
+      fotoMimeType?: string
+    }
+
+    if (!texto && !fotoBase64) {
+      return NextResponse.json({ error: 'Falta texto o foto' }, { status: 400 })
+    }
+
+    const content: Anthropic.MessageParam['content'] = []
+
+    if (fotoBase64) {
+      content.push({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: (fotoMimeType ?? 'image/jpeg') as Anthropic.Base64ImageSource['media_type'],
+          data: fotoBase64,
+        },
+      })
+    }
+
+    content.push({
+      type: 'text',
+      text: texto || 'Analiza los alimentos de la imagen',
+    })
+
+    const anthropic = new Anthropic({ apiKey })
+    const userMessage: Anthropic.MessageParam = { role: 'user', content }
+
+    let rawText = await callClaude(anthropic, [userMessage])
+
     try {
       const parsed = MealSchema.parse(JSON.parse(extractJSON(rawText)))
       return NextResponse.json(parsed)
-    } catch (e) {
-      return NextResponse.json(
-        { error: 'No se pudo analizar la respuesta de Claude', detail: String(e) },
-        { status: 502 }
-      )
+    } catch {
+      rawText = await callClaude(anthropic, [
+        userMessage,
+        { role: 'assistant', content: rawText },
+        { role: 'user', content: 'Responde ÚNICAMENTE con el JSON válido, sin texto adicional.' },
+      ])
+      try {
+        const parsed = MealSchema.parse(JSON.parse(extractJSON(rawText)))
+        return NextResponse.json(parsed)
+      } catch (e) {
+        return NextResponse.json(
+          { error: 'No se pudo analizar la respuesta', detail: String(e) },
+          { status: 502 }
+        )
+      }
     }
+  } catch (e) {
+    console.error('[analyze-meal]', e)
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Error interno del servidor' },
+      { status: 500 }
+    )
   }
 }

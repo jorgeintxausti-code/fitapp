@@ -243,10 +243,21 @@ export default function NuevaIngestaClient({ savedMeals }: Props) {
     )
   }
 
+  function removeDesgloseItem(index: number) {
+    if (!result) return
+    const item = result.desglose[index]
+    setResult({
+      ...result,
+      kcal: Math.max(0, Math.round(result.kcal - item.kcal)),
+      proteina_g: Math.max(0, Math.round((result.proteina_g - item.proteina_g) * 10) / 10),
+      desglose: result.desglose.filter((_, i) => i !== index),
+    })
+  }
+
   // ── Tarjeta de confirmación ───────────────────────────────────────────────
   if (step === 'confirm' && result) {
     return (
-      <div className="px-4 pt-6 pb-24 max-w-lg mx-auto space-y-4">
+      <div className="px-4 pt-6 pb-52 max-w-lg mx-auto space-y-4">
         <div className="flex items-center gap-3">
           <button onClick={() => setStep('input')} className="p-2 -ml-2 rounded-xl text-gray-500">
             <ArrowLeft size={22} />
@@ -322,15 +333,17 @@ export default function NuevaIngestaClient({ savedMeals }: Props) {
             {desglosOpen && (
               <div className="divide-y divide-gray-100 dark:divide-gray-800">
                 {result.desglose.map((item, i) => (
-                  <div key={i} className="flex items-center justify-between px-4 py-2.5">
-                    <div>
+                  <div key={i} className="flex items-center gap-2 px-4 py-2.5">
+                    <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{item.alimento}</p>
-                      <p className="text-xs text-gray-400">{item.cantidad}</p>
+                      <p className="text-xs text-gray-400">{item.cantidad} · {Math.round(item.kcal)} kcal · {Math.round(item.proteina_g)}g prot</p>
                     </div>
-                    <div className="text-right text-xs text-gray-500">
-                      <p>{Math.round(item.kcal)} kcal</p>
-                      <p>{Math.round(item.proteina_g)}g prot</p>
-                    </div>
+                    <button
+                      onClick={() => removeDesgloseItem(i)}
+                      className="p-1.5 rounded-lg text-gray-300 dark:text-gray-600 active:text-red-400 transition-colors shrink-0"
+                    >
+                      <X size={14} />
+                    </button>
                   </div>
                 ))}
               </div>

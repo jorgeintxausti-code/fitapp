@@ -3,18 +3,32 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { peatScoreBg } from '@/lib/utils'
-import { Bookmark, BookmarkCheck, Loader2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Bookmark, BookmarkCheck, Loader2, Trash2 } from 'lucide-react'
 import type { Meal } from '@/types/database'
 
 export default function MealRowClient({ meal }: { meal: Meal }) {
+  const router = useRouter()
   const [expanded, setExpanded] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleted, setDeleted] = useState(false)
 
   const hora = new Date(meal.eaten_at).toLocaleTimeString('es-ES', {
     hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid',
   })
   const tipo = { desayuno: 'Desayuno', comida: 'Comida', cena: 'Cena', snack: 'Snack' }[meal.tipo] ?? meal.tipo
+
+  async function handleDelete() {
+    setDeleting(true)
+    const supabase = createClient()
+    await supabase.from('meals').delete().eq('id', meal.id)
+    setDeleted(true)
+    setDeleting(false)
+    router.refresh()
+  }
 
   async function handleSaveHabitual() {
     setSaving(true)
@@ -73,18 +87,31 @@ export default function MealRowClient({ meal }: { meal: Meal }) {
       </button>
 
       {/* Panel expandido */}
-      {expanded && !saved && (
-        <div className="px-4 pb-3 pt-0 border-t border-gray-100 dark:border-gray-800">
+      {expanded && !saved && !deleted && (
+        <div className="px-4 pb-3 pt-0 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
           <button
             onClick={handleSaveHabitual}
             disabled={saving}
             className="flex items-center gap-2 text-sm font-medium text-orange-500 disabled:opacity-50 py-2"
           >
-            {saving
-              ? <Loader2 size={15} className="animate-spin" />
-              : <Bookmark size={15} />}
+            {saving ? <Loader2 size={15} className="animate-spin" /> : <Bookmark size={15} />}
             Guardar como habitual
           </button>
+
+          {confirmDelete ? (
+            <div className="flex items-center gap-2">
+              <button onClick={() => setConfirmDelete(false)} className="text-xs text-gray-400 py-1.5 px-2.5 rounded-xl border border-gray-200 dark:border-gray-700">
+                No
+              </button>
+              <button onClick={handleDelete} disabled={deleting} className="text-xs font-medium text-white bg-red-500 py-1.5 px-2.5 rounded-xl disabled:opacity-50">
+                {deleting ? '...' : 'Eliminar'}
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5 text-sm text-gray-400 py-2 active:text-red-400">
+              <Trash2 size={15} />
+            </button>
+          )}
         </div>
       )}
     </div>

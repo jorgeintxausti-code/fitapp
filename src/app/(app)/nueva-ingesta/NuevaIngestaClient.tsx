@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { tipoComidaPorHora, peatScoreBg, peatScoreColor } from '@/lib/utils'
 import type { SavedMeal, TipoComida } from '@/types/database'
 import type { MealAnalysis } from '@/app/api/analyze-meal/route'
-import { ArrowLeft, Mic, MicOff, Loader2, ChevronDown, ChevronUp, Clock } from 'lucide-react'
+import { ArrowLeft, Mic, MicOff, Loader2, ChevronDown, ChevronUp, Clock, Camera, X } from 'lucide-react'
 
 const TIPOS: TipoComida[] = ['desayuno', 'comida', 'cena', 'snack']
 
@@ -21,6 +21,34 @@ interface EditableResult extends MealAnalysis {
   tipo: TipoComida
 }
 
+interface FotoData {
+  base64: string
+  mimeType: string
+  previewUrl: string
+}
+
+async function resizeImage(file: File, maxPx = 1500): Promise<FotoData> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+      resolve({
+        base64: dataUrl.split(',')[1],
+        mimeType: 'image/jpeg',
+        previewUrl: url,
+      })
+    }
+    img.onerror = reject
+    img.src = url
+  })
+}
+
 export default function NuevaIngestaClient({ savedMeals }: Props) {
   const router = useRouter()
   const [step, setStep] = useState<Step>('input')
@@ -31,12 +59,19 @@ export default function NuevaIngestaClient({ savedMeals }: Props) {
   const [desglosOpen, setDesglosOpen] = useState(false)
   const [listening, setListening] = useState(false)
   const [guardandoHabitual, setGuardandoHabitual] = useState(false)
+  const [foto, setFoto] = useState<FotoData | null>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const hasSpeech = typeof window !== 'undefined' &&
     ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)
+
+  useEffect(() => {
+    return () => {
+      if (foto) URL.revokeObjectURL(foto.previewUrl)
+    }
+  }, [foto])
 
   function toggleVoice() {
     if (listening) {
@@ -63,19 +98,43 @@ export default function NuevaIngestaClient({ savedMeals }: Props) {
     setListening(true)
   }
 
+  async function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const data = await resizeImage(file)
+      if (foto) URL.revokeObjectURL(foto.previewUrl)
+      setFoto(data)
+    } catch {
+      setError('No se pudo procesar la imagen')
+    }
+    e.target.value = ''
+  }
+
+  function removeFoto() {
+    if (foto) URL.revokeObjectURL(foto.previewUrl)
+    setFoto(null)
+  }
+
   async function handleAnalyze() {
-    if (!texto.trim()) return
+    if (!texto.trim() && !foto) return
     setStep('analyzing')
     setError(null)
     try {
+      const body: Record<string, string> = {}
+      if (texto.trim()) body.texto = texto
+      if (foto) {
+        body.fotoBase64 = foto.base64
+        body.fotoMimeType = foto.mimeType
+      }
       const res = await fetch('/api/analyze-meal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ texto }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) throw new Error((await res.json()).error ?? 'Error en el servidor')
       const data: MealAnalysis = await res.json()
-      setResult({ ...data, descripcion: texto, tipo })
+      setResult({ ...data, descripcion: texto || 'Foto de comida', tipo })
       setStep('confirm')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error desconocido')
@@ -212,8 +271,12 @@ export default function NuevaIngestaClient({ savedMeals }: Props) {
           ))}
         </div>
 
-        {/* Descripción */}
-        <div className="rounded-2xl bg-gray-50 dark:bg-gray-900 px-4 py-3">
+        {/* Descripción + foto preview */}
+        <div className="rounded-2xl bg-gray-50 dark:bg-gray-900 px-4 py-3 flex items-start gap-3">
+          {foto && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={foto.previewUrl} alt="foto comida" className="w-16 h-16 rounded-xl object-cover shrink-0" />
+          )}
           <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{result.descripcion}</p>
         </div>
 
@@ -232,20 +295,10 @@ export default function NuevaIngestaClient({ savedMeals }: Props) {
 
         {/* Macros editables */}
         <div className="rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
-          <MacroRow
-            label="Calorías"
-            value={result.kcal}
-            unit="kcal"
-            onChange={(v) => setResult({ ...result, kcal: v })}
-            highlight
-          />
-          <MacroRow
-            label="Proteína"
-            value={result.proteina_g}
-            unit="g"
-            onChange={(v) => setResult({ ...result, proteina_g: v })}
-            highlight
-          />
+          <MacroRow label="Calorías" value={result.kcal} unit="kcal"
+            onChange={(v) => setResult({ ...result, kcal: v })} highlight />
+          <MacroRow label="Proteína" value={result.proteina_g} unit="g"
+            onChange={(v) => setResult({ ...result, proteina_g: v })} highlight />
           <MacroRow label="Carbohidratos" value={result.carbohidratos_g} unit="g"
             onChange={(v) => setResult({ ...result, carbohidratos_g: v })} />
           <MacroRow label="Grasa" value={result.grasa_g} unit="g"
@@ -364,32 +417,68 @@ export default function NuevaIngestaClient({ savedMeals }: Props) {
         </div>
       )}
 
-      {/* Textarea */}
+      {/* Textarea + foto preview */}
       <div>
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Describe la comida</p>
+
+        {/* Vista previa foto */}
+        {foto && (
+          <div className="relative inline-block mb-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={foto.previewUrl} alt="foto" className="w-24 h-24 rounded-2xl object-cover" />
+            <button
+              onClick={removeFoto}
+              className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-gray-800 text-white flex items-center justify-center shadow"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        )}
+
         <div className="relative">
           <textarea
-            ref={textareaRef}
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
-            placeholder="Ej: 2 huevos revueltos con 50g de queso, una tostada con mantequilla y un vaso de zumo de naranja"
+            placeholder={foto ? 'Añade contexto opcional (ej: con mantequilla)' : 'Ej: 2 huevos revueltos con 50g de queso, una tostada con mantequilla y un vaso de zumo de naranja'}
             rows={4}
-            className="w-full rounded-2xl border border-gray-200 dark:border-gray-700 dark:bg-gray-900 px-4 py-3 text-base resize-none outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+            className="w-full rounded-2xl border border-gray-200 dark:border-gray-700 dark:bg-gray-900 px-4 py-3 pr-24 text-base resize-none outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
           />
-          {hasSpeech && (
+          <div className="absolute bottom-3 right-3 flex gap-2">
+            {/* Cámara */}
             <button
               type="button"
-              onClick={toggleVoice}
-              className={`absolute bottom-3 right-3 p-2 rounded-xl transition-colors ${
-                listening
-                  ? 'bg-red-500 text-white'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-500'
-              }`}
+              onClick={() => fileInputRef.current?.click()}
+              className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-500 active:scale-95 transition-transform"
             >
-              {listening ? <MicOff size={18} /> : <Mic size={18} />}
+              <Camera size={18} />
             </button>
-          )}
+            {/* Voz */}
+            {hasSpeech && (
+              <button
+                type="button"
+                onClick={toggleVoice}
+                className={`p-2 rounded-xl transition-colors ${
+                  listening
+                    ? 'bg-red-500 text-white'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-500'
+                }`}
+              >
+                {listening ? <MicOff size={18} /> : <Mic size={18} />}
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Input de archivo oculto */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={handlePhotoSelect}
+        />
+
         {listening && (
           <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
             <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
@@ -404,7 +493,7 @@ export default function NuevaIngestaClient({ savedMeals }: Props) {
       <div className="fixed bottom-20 left-0 right-0 px-4 max-w-lg mx-auto">
         <button
           onClick={handleAnalyze}
-          disabled={!texto.trim()}
+          disabled={!texto.trim() && !foto}
           className="w-full rounded-2xl bg-orange-500 py-4 text-base font-semibold text-white shadow-lg disabled:opacity-40 active:scale-95 transition-transform"
         >
           Analizar con Claude →

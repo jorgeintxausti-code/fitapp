@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile, getLatestWeight } from '@/lib/queries'
 import { calcularBMR, calcularTDEE } from '@/lib/bmr'
@@ -41,7 +42,17 @@ export default async function AjustesPage() {
 
       <EditProfileForm profile={profile} />
 
-      <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
+      <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+        <Link
+          href="/habituales"
+          className="flex items-center justify-between w-full py-3 text-sm font-medium text-gray-700 dark:text-gray-300"
+        >
+          <span>Comidas habituales</span>
+          <span className="text-gray-400">›</span>
+        </Link>
+      </div>
+
+      <div className="border-t border-gray-100 dark:border-gray-800">
         <LogoutButton />
       </div>
     </div>

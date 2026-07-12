@@ -17,6 +17,8 @@ export interface DesglosAlimento {
   proteina_g: number
 }
 
+// ─── Application types (used in components) ──────────────────────────────────
+
 export interface Profile {
   user_id: string
   nombre: string | null
@@ -48,7 +50,7 @@ export interface Meal {
   fosforo_mg: number
   peat_score: number
   peat_comentario: string | null
-  desglose: DesglosAlimento[] | null
+  desglose: Json | null
   saved_meal_id: string | null
   created_at: string
 }
@@ -67,7 +69,7 @@ export interface SavedMeal {
   fosforo_mg: number
   peat_score: number
   peat_comentario: string | null
-  desglose: DesglosAlimento[] | null
+  desglose: Json | null
   veces_usada: number
   ultima_vez: string | null
   created_at: string
@@ -90,34 +92,221 @@ export interface Weight {
   peso_kg: number
 }
 
+// ─── Supabase Database type (matches the format @supabase/supabase-js expects) ─
+
 export interface Database {
   public: {
     Tables: {
       profiles: {
-        Row: Profile
-        Insert: Omit<Profile, 'created_at'>
-        Update: Partial<Omit<Profile, 'user_id' | 'created_at'>>
+        Row: {
+          user_id: string
+          nombre: string | null
+          sexo: string | null
+          fecha_nacimiento: string | null
+          altura_cm: number | null
+          peso_inicial_kg: number | null
+          objetivo_peso_kg: number | null
+          nivel_actividad_base: string | null
+          deficit_objetivo_kcal: number
+          proteina_objetivo_g: number | null
+          timezone: string
+          created_at: string
+        }
+        Insert: {
+          user_id: string
+          nombre?: string | null
+          sexo?: string | null
+          fecha_nacimiento?: string | null
+          altura_cm?: number | null
+          peso_inicial_kg?: number | null
+          objetivo_peso_kg?: number | null
+          nivel_actividad_base?: string | null
+          deficit_objetivo_kcal?: number
+          proteina_objetivo_g?: number | null
+          timezone?: string
+          created_at?: string
+        }
+        Update: {
+          nombre?: string | null
+          sexo?: string | null
+          fecha_nacimiento?: string | null
+          altura_cm?: number | null
+          peso_inicial_kg?: number | null
+          objetivo_peso_kg?: number | null
+          nivel_actividad_base?: string | null
+          deficit_objetivo_kcal?: number
+          proteina_objetivo_g?: number | null
+          timezone?: string
+        }
+        Relationships: []
       }
       meals: {
-        Row: Meal
-        Insert: Omit<Meal, 'id' | 'created_at'>
-        Update: Partial<Omit<Meal, 'id' | 'user_id' | 'created_at'>>
+        Row: {
+          id: string
+          user_id: string
+          eaten_at: string
+          tipo: string
+          descripcion_original: string | null
+          foto_url: string | null
+          kcal: number
+          proteina_g: number
+          carbohidratos_g: number
+          grasa_g: number
+          pufa_g: number
+          calcio_mg: number
+          fosforo_mg: number
+          peat_score: number
+          peat_comentario: string | null
+          desglose: Json | null
+          saved_meal_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          eaten_at?: string
+          tipo?: string
+          descripcion_original?: string | null
+          foto_url?: string | null
+          kcal?: number
+          proteina_g?: number
+          carbohidratos_g?: number
+          grasa_g?: number
+          pufa_g?: number
+          calcio_mg?: number
+          fosforo_mg?: number
+          peat_score?: number
+          peat_comentario?: string | null
+          desglose?: Json | null
+          saved_meal_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          eaten_at?: string
+          tipo?: string
+          descripcion_original?: string | null
+          foto_url?: string | null
+          kcal?: number
+          proteina_g?: number
+          carbohidratos_g?: number
+          grasa_g?: number
+          pufa_g?: number
+          calcio_mg?: number
+          fosforo_mg?: number
+          peat_score?: number
+          peat_comentario?: string | null
+          desglose?: Json | null
+          saved_meal_id?: string | null
+        }
+        Relationships: []
       }
       saved_meals: {
-        Row: SavedMeal
-        Insert: Omit<SavedMeal, 'id' | 'created_at'>
-        Update: Partial<Omit<SavedMeal, 'id' | 'user_id' | 'created_at'>>
+        Row: {
+          id: string
+          user_id: string
+          nombre: string
+          tipo: string
+          kcal: number
+          proteina_g: number
+          carbohidratos_g: number
+          grasa_g: number
+          pufa_g: number
+          calcio_mg: number
+          fosforo_mg: number
+          peat_score: number
+          peat_comentario: string | null
+          desglose: Json | null
+          veces_usada: number
+          ultima_vez: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          nombre: string
+          tipo?: string
+          kcal?: number
+          proteina_g?: number
+          carbohidratos_g?: number
+          grasa_g?: number
+          pufa_g?: number
+          calcio_mg?: number
+          fosforo_mg?: number
+          peat_score?: number
+          peat_comentario?: string | null
+          desglose?: Json | null
+          veces_usada?: number
+          ultima_vez?: string | null
+          created_at?: string
+        }
+        Update: {
+          nombre?: string
+          tipo?: string
+          kcal?: number
+          proteina_g?: number
+          carbohidratos_g?: number
+          grasa_g?: number
+          pufa_g?: number
+          calcio_mg?: number
+          fosforo_mg?: number
+          peat_score?: number
+          peat_comentario?: string | null
+          desglose?: Json | null
+          veces_usada?: number
+          ultima_vez?: string | null
+        }
+        Relationships: []
       }
       activities: {
-        Row: Activity
-        Insert: Omit<Activity, 'id' | 'created_at'>
-        Update: Partial<Omit<Activity, 'id' | 'user_id' | 'created_at'>>
+        Row: {
+          id: string
+          user_id: string
+          fecha: string
+          descripcion: string
+          kcal_estimadas: number
+          desglose_claude: Json | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          fecha?: string
+          descripcion: string
+          kcal_estimadas?: number
+          desglose_claude?: Json | null
+          created_at?: string
+        }
+        Update: {
+          fecha?: string
+          descripcion?: string
+          kcal_estimadas?: number
+          desglose_claude?: Json | null
+        }
+        Relationships: []
       }
       weights: {
-        Row: Weight
-        Insert: Omit<Weight, 'id'>
-        Update: Partial<Omit<Weight, 'id' | 'user_id'>>
+        Row: {
+          id: string
+          user_id: string
+          fecha: string
+          peso_kg: number
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          fecha?: string
+          peso_kg: number
+        }
+        Update: {
+          fecha?: string
+          peso_kg?: number
+        }
+        Relationships: []
       }
     }
+    Views: Record<string, never>
+    Functions: Record<string, never>
+    Enums: Record<string, never>
+    CompositeTypes: Record<string, never>
   }
 }
